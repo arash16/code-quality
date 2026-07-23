@@ -1,6 +1,6 @@
 ---
 name: clean-dev
-description: Use when writing, editing, or reviewing code in any language or framework. A standing guardrail that enforces clean-code and clean-architecture discipline (SOLID, DRY, YAGNI, cohesion, dependency inversion, deep modules), stops tech debt from accumulating one small violation at a time, prevents overengineering and unintended side effects, and requires clarifying ambiguous requirements before implementing.
+description: Use when planning, writing, editing, or reviewing code in any language or framework. Includes every special rule evaluated and expected from the agent regarding code quality, workflow disciplines to follow, and a self-checking Definition-of-Done table. These should be followed for any kind of development task, including bug fixes, refactors, and new features. Agents' final output is evaluated against this skill, and any violation is a failure. The agent should not output code that violates these rules. Never continue with user's task or planing or ever research/exploration before reading this skill. It contains the very discipline you need to follow to do the planing.
 ---
 
 # Clean Dev
@@ -20,6 +20,31 @@ These are commands, not concepts. You already know what these principles mean; t
 
 Each principle opens with the hard rule (in bold), followed by concrete examples to follow.
 
+### DRY — one home per piece of knowledge; don't reinvent the wheel
+**Every business rule, formula, or decision lives in exactly one authoritative place; duplicating that knowledge means fixing it in two places later — a latent bug. This extends beyond your code: don't rebuild what a trusted, tested library already solves.**
+- Prefer a well-maintained external library over your own version of a solved problem (date math, validation, retries, auth, parsing, HTTP, abstraction on multi-vendor APIs, polyfills and shims, etc) — you inherit its correctness and tests, and every line you don't write is a line no future session has to read and understand.
+- Use what the project's existing dependencies already provide before hand-rolling the same capability; check the manifest/lockfile and reach for their helpers first.
+- For any task or sub-problem, search the web and the package registry for a ready, maintained solution before building it, and write your own only when nothing fits or the dependency's cost (footprint, security, maintenance) far outweighs it.
+- Keep the VAT calculation in one `taxRate(region)` function that the invoice and the report both call.
+- When you search the codebase for a pattern to follow and find a near-identical block, factor it into a shared, reusable unit and call it, rather than adding a third copy.
+- Don't copy-paste a pattern you found just because it looks close — near-duplication you spread now is duplication you must fix in every copy later.
+- Don't encode the same retry limit or email regex as a literal in several files.
+- Leave apart two blocks that merely look alike but encode different rules that will change independently (a `UserDTO` and an `AccountDTO` with the same fields today) — that is coincidental similarity, not shared knowledge.
+- Suspect a DRY violation when one bug fix requires the identical edit in several files. Here the fix includes refactoring out the shared code.
+
+### Step back — see the bigger picture, then generalize defensibly
+**Before implementing, step back and understand why this task exists and what larger goal it serves; let that understanding tell you which futures are probable, and design for them. The aim is intelligent generalization you could defend in review from the domain — not a reflexive extra parameter, and not blind minimalism. Under-thinking the whole is the common failure: a wrong design is usually a failure to look up from the immediate line.**
+- Ask what the task is really in service of and design for that goal, not merely for the literal words of the request.
+- Infer the most probable next requirements from the domain and product direction, shape signatures and boundaries so those cases slot in without a rewrite, and be ready to name each future you designed for.
+- When the domain plainly has several "unique by X" needs, write one `uniqueBy(items, keySelector)` rather than letting `uniqueByEmail`, `uniqueById`, and `uniqueByName` accrete over time — do it because you can name those cases, not on a hunch.
+- Model a recurring domain concept as a type, enum, or value object rather than a bare primitive (a `Currency` type, not a magic string), so a new case extends the type instead of copy-pasting checks.
+- When a hard task (B) forces an ugly solution, suspect an XY problem — B may be a workaround for a wrong earlier answer (A); surface it and check whether revisiting A is the real fix (see B.1 Clarify before implementing).
+- Justify every abstraction out loud: a `Clock`, a `Repository`, or a `Money` type earns its place by a reason you could state and defend, never "might be handy."
+- Don't generalize on a guess you cannot justify — a plugin system with one plugin, a config flag no caller sets, or indirection added "for flexibility" you cannot name is over-engineering, not foresight.
+- Don't generalize across two things that merely look alike today but encode different rules (see DRY) — coincidental similarity is not a reuse case.
+- Keep heavyweight swap-seams (dependency-inversion interfaces, adapters) for genuine volatility or third-party edges — that is DIP's job.
+- Suspect over-engineering when an abstraction has exactly one caller with no plausible second you can name, or when the indirection is harder to comprehend than the code it wraps.
+
 ### SRP — one reason to change
 **A unit answers to one actor and changes for one reason; split it when its responsibilities serve different actors or change on different cadences, never merely because it grew long.**
 - Separate the pay calculation, the payslip rendering, and the database write into their own units, so changing the report layout can never break the payroll math.
@@ -27,6 +52,24 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - Don't let one `Payroll` class compute pay, format the HTML payslip, and run the SQL — that is three reasons to change living in one place.
 - Suspect a broken responsibility when you need the word "and" to describe the unit, when a business rule sits on the line next to a raw SQL string, or when the same file keeps appearing in unrelated tickets.
 - Remember SRP is about reasons to change, not size — a cohesive 300-line class beats five shallow ones.
+
+### Separation of concerns / orthogonality
+**Keep unrelated concerns in independent units so a change to one doesn't ripple into another; changing the database should not touch the UI, and changing one business rule should touch one module.**
+- Keep business rules in pure functions and push IO to the edges, so the rules can change without touching transport code.
+- Route persistence through a boundary so swapping the data store leaves the rules untouched.
+- Don't put SQL strings in the view or pricing rules inside a React component.
+- Don't let a single rule change force edits across six modules.
+- Ask "if I change requirement X, how many modules change?" — the answer should be one.
+- Suspect tangled concerns when one conceptual change spreads across many files, or when a `utils` grab-bag is imported almost everywhere.
+
+### Cohesion by feature — colocate what changes together
+**Organize code by feature or domain capability, not by technical role; everything that changes together for one feature lives together.**
+- Put the checkout handler, service, model, types, and tests together in a `checkout/` module, beside sibling `billing/` and `shipping/` modules.
+- Structure the tree so you could remove a feature by deleting a single folder.
+- Don't spread one feature across top-level `controllers/`, `services/`, `models/`, and `utils/`, so a checkout change has to touch four distant folders.
+- Ask "can I find everything about feature X in one place, and could I delete it by deleting one folder?"
+- Suspect low cohesion when adding one feature edits many sibling "layer" folders, or when a `models`/`services` directory grows without bound.
+- Where a framework imposes a role-based layout (Rails), still group by feature within its conventions as far as it allows.
 
 ### Open/Closed, Liskov & Interface Segregation — extension and interface discipline
 **Add new variants by adding code rather than editing what already works, keep every subtype usable in place of its base with no weakened guarantees, and let each client depend only on the methods it actually uses.**
@@ -49,24 +92,6 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - Suspect leaked control when a domain module imports a framework, ORM, HTTP client, or vendor package, or when logic reaches a global singleton for its collaborators.
 - Note that in Python/TS, directly instantiating a plain imported class is idiomatic — the smell is an unsubstitutable dependency on IO, a vendor, or a framework inside business logic, not instantiation itself; in Java/Kotlin/C#/Angular, a class that `new`s its own collaborators is the smell.
 
-### DRY — one home per piece of knowledge
-**Every business rule, formula, or decision lives in exactly one authoritative place; duplicating that knowledge means fixing it in two places later — a latent bug.**
-- Keep the VAT calculation in one `taxRate(region)` function that the invoice and the report both call.
-- When you search the codebase for a pattern to follow and find a near-identical block, factor it into a shared, reusable unit and call it, rather than adding a third copy.
-- Don't copy-paste a pattern you found just because it looks close — near-duplication you spread now is duplication you must fix in every copy later.
-- Don't encode the same retry limit or email regex as a literal in several files.
-- Leave apart two blocks that merely look alike but encode different rules that will change independently (a `UserDTO` and an `AccountDTO` with the same fields today) — that is coincidental similarity, not shared knowledge.
-- Suspect a DRY violation when one bug fix requires the identical edit in several files. Here the fix includes refactoring out the shared code.
-
-### YAGNI + KISS — simple, but seek the middle ground
-**Build what the current requirement needs in the simplest form that still reads clearly; "simplest" is not "most primitive," and the goal is the middle ground between over-generalizing and inlining everything.**
-- Extract a small, well-named function for a conceptual step (`normalizeEmail(x)`) even when it is called once, so the caller reads as a sequence of intentions instead of a wall of mechanics.
-- Introduce an abstraction once a second real case has arrived, or when reuse is genuinely certain and imminent.
-- Prefer the concrete implementation first when the shape of future variation is still unknown.
-- Don't add an interface with a single implementation, a plugin system for one plugin, or a config flag no caller sets, "for later."
-- Don't inline five conceptual steps as one long unnamed block to avoid "extra" functions — that is false simplicity nobody will untangle later, and agents rarely return to refactor it.
-- Suspect over-engineering when an abstract base has exactly one subclass, a parameter is always passed the same value, or an in-house "engine/manager/framework" exists for a need a library already covers.
-
 ### Deep modules / information hiding
 **Prefer modules with a simple interface hiding substantial implementation; a module should give the caller more capability than the understanding it demands.**
 - Expose `parse(url) -> Request` that hides all the parsing steps, so callers never see the internals.
@@ -77,15 +102,6 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - Treat a long function as only a hint to look closer, never by itself a reason to split a cohesive one; decompose for one-reason-to-change and readability, not to make units small.
 - Suspect classitis when doing one thing requires understanding five classes, or when an interface is as complex to learn as the implementation behind it.
 
-### Separation of concerns / orthogonality
-**Keep unrelated concerns in independent units so a change to one doesn't ripple into another; changing the database should not touch the UI, and changing one business rule should touch one module.**
-- Keep business rules in pure functions and push IO to the edges, so the rules can change without touching transport code.
-- Route persistence through a boundary so swapping the data store leaves the rules untouched.
-- Don't put SQL strings in the view or pricing rules inside a React component.
-- Don't let a single rule change force edits across six modules.
-- Ask "if I change requirement X, how many modules change?" — the answer should be one.
-- Suspect tangled concerns when one conceptual change spreads across many files, or when a `utils` grab-bag is imported almost everywhere.
-
 ### Composition over inheritance
 **Compose behavior from small parts; inherit only for genuine subtyping, never merely to reuse code.**
 - Inject a strategy (a `Sorter`) instead of branching on type inside the implementation.
@@ -94,15 +110,6 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - Don't reach for a base class as a way to reuse code between otherwise unrelated types.
 - Suspect an inheritance problem when understanding one class means reading the whole chain, or when base classes carry protected members tuned differently by each subclass.
 - Follow the framework where it is inheritance-based (UI widgets, ORM base classes); this rule targets your own domain code.
-
-### Cohesion by feature — colocate what changes together
-**Organize code by feature or domain capability, not by technical role; everything that changes together for one feature lives together.**
-- Put the checkout handler, service, model, types, and tests together in a `checkout/` module, beside sibling `billing/` and `shipping/` modules.
-- Structure the tree so you could remove a feature by deleting a single folder.
-- Don't spread one feature across top-level `controllers/`, `services/`, `models/`, and `utils/`, so a checkout change has to touch four distant folders.
-- Ask "can I find everything about feature X in one place, and could I delete it by deleting one folder?"
-- Suspect low cohesion when adding one feature edits many sibling "layer" folders, or when a `models`/`services` directory grows without bound.
-- Where a framework imposes a role-based layout (Rails), still group by feature within its conventions as far as it allows.
 
 ### Stable dependencies — root vs leaf
 **The more code depends on a unit (high fan-in — a "root"), the more stable, explicit, and carefully named it must be; leaf units nothing depends on may be simpler and rougher, and dependencies should point toward stability.**
@@ -118,7 +125,7 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 ## B. Workflow / discipline rules
 
 ### 1. Clarify before implementing — hard gate
-- If more than one reasonable interpretation of the request exists, or a decision is expensive to reverse, stop and ask before writing code; ask 1–5 tight questions that each eliminate a whole branch of work, give a recommended default, and offer a fast-path ("reply `defaults` to accept all").
+- If more than one reasonable interpretation of the request exists, or a decision is expensive to reverse, stop and ask before writing code; ask tight questions that each eliminate a whole branch of work, give a recommended default, and offer a fast-path ("reply `defaults` to accept all").
 - Read the code and config first, and don't ask what a quick grep would answer.
 - Do not assume the project has live users and needs backward compatibility — if the docs don't say so, ask whether it's greenfield; guarding compatibility on a greenfield project keeps dead constraints alive and blocks a clean design.
 - If the user's answers raise new ambiguities, ask another round — iterative clarification is correct, not a failure.
@@ -140,9 +147,9 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - Never leave an untracked TODO/FIXME: either fix it now, or leave a TODO that references a real ticket (`// TODO(PROJ-123): …`).
 - Delete commented-out code rather than leaving it, where the codebase's review norms agree.
 
-### 4. Don't overengineer; clean up after yourself
+### 4. Don't over-engineer; clean up after yourself
 - Delete the dead code you create or orphan: unused parameters, unreachable branches, functions no longer called, leftover imports, and scaffolding.
-- Ship the smallest thing that satisfies the requirement (see YAGNI+KISS).
+- Right-size the generalization: design for the futures you can name and defend, but don't build speculative machinery for cases you can't (see Step back — see the bigger picture).
 - When you replace a code path, remove the old one in the same change instead of leaving both.
 
 ---
@@ -165,13 +172,19 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 | Core logic I added/changed is testable with no DB/network/framework? | Add a seam or justify |
 | For a bug fix: did the test fail (red) before the fix and pass after? | Run it pre-fix to prove it reproduces |
 | Knowledge single-sourced — no duplicated business rule, no blind copy-paste? | Extract to one home and reuse |
-| Did I add abstraction/config/flexibility the requirement didn't ask for? | Remove it |
+| Have I named the most probable next change or feature, and would it slot in without a rewrite? | Reshape the design so the likely future fits |
+| To make that probable change, how many places must be touched — is it one? | Consolidate until the knowledge has one home (DRY) |
+| Do the parts that change together sit close (one module/folder), or scattered across the tree? | Colocate them by feature (Cohesion) |
+| Is this only a fix for the immediate task, or am I confident it's a good move for the bigger picture? | Step back; justify it against the real goal, or redesign |
+| Can I defend every abstraction I introduced from the domain, out loud? | Drop the ones I can't justify |
+| Does the task look like a workaround for an earlier wrong decision (XY problem)? | Surface it; check whether revisiting A is the real fix |
+| Would the next engineer find and safely change this behavior quickly? | Improve naming, placement, and cohesion until yes |
 | Did I inline conceptual steps that a named helper would make readable? | Extract for readability |
 | Any dead code, commented-out code, or untracked TODO left? | Delete / ticket it |
 | Behavior and structure changed in the same commit? | Split them |
 | Did I touch a high-fan-in (root) unit? | Re-check its name, signature stability, invariants, and all callers |
 | Build and tests pass? | Fix or revert — don't leave it red |
-| Any behavior outside the task's scope changed? | Revert that |
+| Any behavior outside the task's scope changed? | Revert, or justify and ask for approval |
 
 ---
 
@@ -179,7 +192,7 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 
 1. Silent wrong assumptions → **B.1 Clarify before implementing**
 2. Creeping tech debt / broken windows → **B.3 Scout rule**
-3. Overengineering + dead code → **YAGNI+KISS** and **B.4**
+3. Overengineering + dead code → **Step back — see the bigger picture** (its over-engineering cautions) and **B.4**
 4. Unintended side effects → **B.2 Don't change what you don't understand**
 5. Root vs leaf stability → **Stable dependencies**
 6. Cohesion by feature → **Cohesion by feature**

@@ -8,7 +8,7 @@ An agent always sees each skill's one-line description and reads the full skill 
 
 | Skill | Relevant when | What it does |
 |---|---|---|
-| [`clean-dev`](skills/clean-dev/SKILL.md) | any coding task | Standing guardrail: SOLID, DRY, YAGNI, cohesion-by-feature, deep modules, dependency inversion, root-vs-leaf stability; clarify-before-coding; scout rule; no unintended side effects |
+| [`clean-dev`](skills/clean-dev/SKILL.md) | any coding task | Ten design commandments — SOLID, DRY (+ don't reinvent the wheel), defensible generalization from the bigger picture, cohesion-by-feature, deep modules, dependency inversion, root-vs-leaf stability — plus workflow gates: clarify before coding, scout rule, and changing code without breaking untouched behavior |
 | [`review-and-refactor`](skills/review-and-refactor/SKILL.md) | reviewing or refactoring existing code | Scan a codebase against an explicit issue catalog, prioritize by dependency structure + churn, and execute an ordered plan (dead code → safety net → refactor → boundaries) |
 | [`architect-new`](skills/architect-new/SKILL.md) | designing a new system or feature | Design boundaries → dependency direction → domain model → data/consistency; only expensive-to-reverse decisions, modular monolith by default |
 | [`resilience`](skills/resilience/SKILL.md) | hardening, sizing, or releasing to production | Capacity sizing, integration-point fault tolerance (timeouts, breakers, bulkheads, retries), and safe zero-downtime releases |
@@ -29,6 +29,7 @@ That installs all four skills. From then on the agent reads each one when its de
 
 ## How the skills are written
 
-- **Rules, not slogans.** Each principle is a hard imperative with do-this / don't-do-that examples drawn from several languages, plus the smells that betray a violation before it spreads.
-- **Non-conflicting by design.** The known tensions are resolved once, in the open, so no two rules fight: function size vs. deep modules (line count is only a smell), DRY vs. coincidental duplication (dedupe *knowledge*, not text), abstraction vs. YAGNI (add a seam only at a real volatility or third-party edge), and clarify vs. over-ask.
-- **Self-checking.** Every skill ends with a Definition-of-Done table the agent must pass before calling the work done.
+- **Rules, not slogans.** Each principle is a hard rule followed by concrete, multi-language example sentences — the move to make, the one to avoid, and the smells that betray a violation before it spreads.
+- **Opinionated by observed failure mode.** Rules are written against what AI agents actually get wrong. It pushes *defensible generalization* — because agents under-design by default, so a plain "keep it simple" just licenses laziness; it demands *don't reinvent the wheel* (prefer tested libraries over homegrown code); and it enforces a **red-before-green** test on every bug fix (see the bug reproduce before it's fixed).
+- **Non-conflicting by design.** The known tensions are resolved once, in the open, so no two rules fight: function size vs. deep modules (line count is only a smell), DRY vs. coincidental duplication (dedupe *knowledge*, not text), defensible generalization vs. over-engineering (design for futures you can name and defend; keep heavyweight swap-seams for real volatility or third-party edges), and clarify vs. over-ask.
+- **Self-checking.** Every skill ends with a `Check | If No → Action` Definition-of-Done table — including bigger-picture questions (what's the probable next change? how many places must it touch? is this only for the immediate task?) — that the agent must pass before calling the work done.
