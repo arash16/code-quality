@@ -7,30 +7,55 @@ description: Use when planning, writing, editing, or reviewing code in any langu
 
 These are commands, not concepts. You already know what these principles mean; the failure mode is not applying them under task pressure — so follow them on every change, however small, because debt accumulates one tolerated violation at a time. Be fanatically, religiously devoted to code quality: dirty code is not merely technical debt, it is sin. Hell is maintaining the legacy mess you wrote yourself; salvation is a green, maintainable codebase you can live in.
 
-## Ecosystem precedence — read first
+---
 
-- The project's language, framework, and idiom best practices **override any rule here**. Follow the stack.
-- A principle's **intent** is universal; its **mechanism and smells are often language-specific**. Where a rule is scoped ("where applicable", a named stack), apply the intent — use the mechanism only if it fits.
-- **Never import a convention from another ecosystem.** If a rule here would fight an idiomatic best practice of the current stack, the stack wins — note the conflict in one line and move on.
-- Match the conventions already established in this codebase (naming, layout, error handling) over your personal defaults.
+## The eternal goals — the ends every rule serves, and the tie-breakers when rules conflict
+
+**The principles below are the means; these four are the ends. Pursue them by default, and when two principles pull in opposite directions, keep whichever option best serves these four — that is how you break the tie.**
+
+### Local reasoning
+**A reader should be able to understand and safely change a unit by looking at it alone, without holding the rest of the system in their head.**
+- Make a unit's behavior depend only on its inputs and its own state, not on hidden global state or an ordering that some distant caller has to get right.
+- Prefer an explicit argument or return value over a shared mutable flag that silently couples two far-apart units.
+- Suspect broken local reasoning when safely editing one unit first requires reading three others.
+
+### Contain complexity
+**Complexity you can't remove must be contained — concentrate it behind one unit's simple interface instead of smearing it across many. Keep the hard parts in as few places as possible so the rest of the code stays simple.**
+- When several steps must run in order with branching between them, give one coordinator the flow — it calls each step and decides what comes next — while each step does only its own job and knows nothing of its neighbors; don't chain unit A → B → C so the sequence is smeared across all ten and no single place tells you what runs when.
+- When you must write something ugly — a workaround for a vendor bug, a performance-critical inner loop, a gnarly parsing regex — wrap it behind a named unit with a clear contract and a note on why, so the mess lives in one quarantined place and its callers stay clean.
+- Pull complexity downward: absorb the edge cases and bookkeeping inside the module so callers don't each repeat them, rather than pushing flags and special-case handling outward onto every caller.
+- Handle a special case, null, or ordering quirk once inside the unit that owns it, not in the ten callers that use it.
+- A patch of ugly code is not the failure; ugly code with no wall around it is — the defect is complexity leaking into the units around it.
+- Suspect scattered complexity when understanding one behavior means hopping through many files, when the same guard or special case repeats across many callers, or when no single place reveals the order things happen.
+
+### Readability — lowest cognitive load
+**Optimize for the human who reads this next; code is read far more often than written, so the clearest correct version beats the clever or the shortest.**
+- Name things so the reader needs no comment to know what they do, and spend a longer name to save a future lookup.
+- Keep how much someone must track at once small — few parameters, shallow nesting, one idea per line.
+
+### Minimal blast radius for the probable change
+**Shape the code so the change you can already see coming touches the fewest and closest places — ideally one.**
+- Put the knowledge and the parts that move together in one place, so the foreseeable next edit is one local change, not a hunt across the tree (this is DRY and cohesion working for you).
+- Keep a widely-depended-on unit's surface small and stable, so changing what's behind it doesn't ripple out to every caller.
+- Suspect a wide blast radius when adding one foreseeable feature means editing many scattered files.
 
 ---
 
-## A. Design principles – The Ten Commandments
+## A. Design principles
 
 Each principle opens with the hard rule (in bold), followed by concrete examples to follow.
 
-### DRY — one home per piece of knowledge; don't reinvent the wheel
+### DRY — one home per piece of knowledge, whoever wrote it
 **Every business rule, formula, or decision lives in exactly one authoritative place; duplicating that knowledge means fixing it in two places later — a latent bug. This extends beyond your code: don't rebuild what a trusted, tested library already solves.**
 - Prefer a well-maintained external library over your own version of a solved problem (date math, validation, retries, auth, parsing, HTTP, abstraction on multi-vendor APIs, polyfills and shims, etc) — you inherit its correctness and tests, and every line you don't write is a line no future session has to read and understand.
 - Use what the project's existing dependencies already provide before hand-rolling the same capability; check the manifest/lockfile and reach for their helpers first.
-- For any task or sub-problem, search the web and the package registry for a ready, maintained solution before building it, and write your own only when nothing fits or the dependency's cost (footprint, security, maintenance) far outweighs it.
+- For any task or sub-problem, search the web and the package registry for a ready, maintained and fitting solution before building it, and write your own only when nothing fits or the dependency's cost (footprint, security, maintenance) far outweighs it.
 - Keep the VAT calculation in one `taxRate(region)` function that the invoice and the report both call.
 - When you search the codebase for a pattern to follow and find a near-identical block, factor it into a shared, reusable unit and call it, rather than adding a third copy.
 - Don't copy-paste a pattern you found just because it looks close — near-duplication you spread now is duplication you must fix in every copy later.
 - Don't encode the same retry limit or email regex as a literal in several files.
 - Leave apart two blocks that merely look alike but encode different rules that will change independently (a `UserDTO` and an `AccountDTO` with the same fields today) — that is coincidental similarity, not shared knowledge.
-- Suspect a DRY violation when one bug fix requires the identical edit in several files. Here the fix includes refactoring out the shared code.
+- Suspect a DRY violation when one bug fix requires the identical edit in several files — there, first refactor the copies into one home as a structural change, then fix the bug once in it (see B.4).
 
 ### Step back — see the bigger picture, then generalize defensibly
 **Before implementing, step back and understand why this task exists and what larger goal it serves; let that understanding tell you which futures are probable, and design for them. The aim is intelligent generalization you could defend in review from the domain — not a reflexive extra parameter, and not blind minimalism. Under-thinking the whole is the common failure: a wrong design is usually a failure to look up from the immediate line.**
@@ -74,7 +99,7 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 ### Open/Closed, Liskov & Interface Segregation — extension and interface discipline
 **Add new variants by adding code rather than editing what already works, keep every subtype usable in place of its base with no weakened guarantees, and let each client depend only on the methods it actually uses.**
 - Register a new payment type as a new handler in a map, or a new class implementing `PaymentMethod`, leaving the branches that already work untouched.
-- Don't reopen and edit the same `switch (type)` on every new variant, and don't build that extension point until a second variant actually exists.
+- Don't reopen and edit the same `switch (type)` on every new variant, and don't build that extension point until a second variant exists or is concretely planned — until then, shaping signatures and boundaries so a variant could slot in later (see Step back) is enough.
 - Model a read-only collection as its own type instead of subclassing a mutable list and disabling its write methods.
 - Don't make `Square` extend `Rectangle` with a `setWidth` that secretly changes the height, and don't override a method just to throw "not supported."
 - Give a handler only the `Clock` it needs instead of the whole `Services` container, and split a fat `Stream` into `Reader` and `Writer` so read-only callers don't depend on writing.
@@ -91,6 +116,7 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - Ask "can I exercise this logic with no database, network, or framework running?" — if not, add a seam.
 - Suspect leaked control when a domain module imports a framework, ORM, HTTP client, or vendor package, or when logic reaches a global singleton for its collaborators.
 - Note that in Python/TS, directly instantiating a plain imported class is idiomatic — the smell is an unsubstitutable dependency on IO, a vendor, or a framework inside business logic, not instantiation itself; in Java/Kotlin/C#/Angular, a class that `new`s its own collaborators is the smell.
+- Follow the framework where its idiom fuses domain and persistence (Rails ActiveRecord, Django models) — keep the business decisions in methods you could exercise without a live database, but don't fight the stack by importing another ecosystem's repository/adapter ceremony.
 
 ### Deep modules / information hiding
 **Prefer modules with a simple interface hiding substantial implementation; a module should give the caller more capability than the understanding it demands.**
@@ -133,21 +159,38 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - **A decision made silently is a defect** — if you must proceed on an assumption, state it explicitly and flag it, never bury it.
 - Don't over-ask: prefer yes/no or multiple-choice over open-ended, and skip trivia a reading would settle.
 
-### 2. Don't change what you don't understand
+### 2. Think for yourself — own the project, don't just execute
+- Act as the engineer solely responsible for maintaining and evolving this project, not as a hand that types what it's told: judge each request on its merits and speak up when it looks wrong, because the user may not have weighed what you're now seeing.
+- Challenge questionable technical decisions — an unmaintained or ill-fitting library, an architecture that won't scale, a "quick" shortcut that will rot into a maintenance trap, a data model that can't represent a real case, a dependency with known security holes, a design that contradicts a pattern already established here, etc.
+- Question the premise when the task only makes sense under an assumption that looks false: surface the assumption instead of building on it, and check whether an earlier wrong decision is the real thing to fix (the XY problem — see Step back).
+- Where there's a user-facing surface, put yourself in the user's seat — walk the empty state, the error message, the hostile input — and flag a flow that would frustrate or mislead.
+- Point out the simpler, safer, or more standard alternative when you see one, with your reasoning, rather than silently shipping the worse approach you were handed.
+- Don't execute an instruction you can see is wrong just because it was given, and don't withhold a concern to avoid friction — a concern the user overrules costs one sentence, a bad decision shipped costs a rewrite.
+- Don't turn ownership into obstruction: raise each concern once, concisely, with a recommended alternative (the way you clarify ambiguity in B.1), then proceed with whatever the user decides.
+
+### 3. Explore and plan for quality, not just the feature — and require the same of sub-agents
+- Explore the area you'll touch as if quality were part of the requirement, not just "make it work": note the pattern you should follow, the duplication you could reuse instead of copying, the seam you'll need to keep it testable, and the high-fan-in file you must not casually reshape.
+- Turn what you find into concrete plan decisions up front — "reuse `parseAddress` instead of adding a third copy", "inject the clock so this stays testable", "this touches the widely-imported `Money` type, so update every caller", "extract the duplicated block first as its own structural change, then build the feature on the cleaned base" — instead of discovering them halfway through the edit.
+- When you delegate exploration to a sub-agent, add quality reporting to its brief: e.g. "while you trace how orders are priced, also flag any duplication, god classes, missing seams, or dead code you pass." A sub-agent that returns only the functional answer hides the state of the very code you're about to build on.
+- Keep that a no-extra-work byproduct of the traversal it already does; commission a dedicated quality-scouting sub-agent only when the target area is large or risky enough to earn one.
+- Don't act on a research summary that reports only functional findings from code you know is messy — send it back with the quality question; scouting informs the plan, but the task at hand still decides what you actually change (see B.5 scout rule and B.6).
+
+### 4. Don't change what you don't understand
 - Before editing existing code, be able to say what it does and who depends on it; if you can't, investigate or ask rather than guess.
 - Keep public signatures/contracts stable unless changing them is the task; if you must change one, find and update every caller.
 - Change behavior **or** restructure in a commit, never both — a mixed commit hides which change broke things.
+- When the task needs both, plan the order: structural changes first — the cleanup, the extraction, the refactor the change depends on — then the behavioral change on top of the cleaned base. The split is how you do both, never a reason to do less: if the two disciplines ever collide, the refactoring wins over split hygiene of structural vs behavioral changes.
 - **When fixing a bug with a test, write the test first and run it *before* the fix to confirm it fails for the right reason (red); only then apply the fix and confirm it passes (green).** Never investigate, guess the cause, apply a fix, and *then* write a test that happens to pass — a test that never went red proves nothing, and your guess may have been wrong.
 - Run the build/tests after each change; a green→red means revert and retry smaller, not debug in place.
 - Never delete or rewrite code you don't understand just to make an error disappear — that is exactly how untouched behavior breaks.
 
-### 3. Leave it cleaner — but don't spread the mess (scout rule)
+### 5. Leave it cleaner — but don't spread the mess (scout rule)
 - Match the **better** existing pattern, not the worst one nearby; copying a local bad pattern "to stay consistent" spreads debt.
 - Make the file you touch slightly cleaner than you found it (a name, a dead line), within the task's scope, without sprawling into unrelated refactors.
 - Never leave an untracked TODO/FIXME: either fix it now, or leave a TODO that references a real ticket (`// TODO(PROJ-123): …`).
 - Delete commented-out code rather than leaving it, where the codebase's review norms agree.
 
-### 4. Don't over-engineer; clean up after yourself
+### 6. Don't over-engineer; clean up after yourself
 - Delete the dead code you create or orphan: unused parameters, unreachable branches, functions no longer called, leftover imports, and scaffolding.
 - Right-size the generalization: design for the futures you can name and defend, but don't build speculative machinery for cases you can't (see Step back — see the bigger picture).
 - When you replace a code path, remove the old one in the same change instead of leaving both.
@@ -168,20 +211,19 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 | Check | If No → Action |
 |---|---|
 | Requirement confirmed, no silent assumptions (incl. greenfield vs live users)? | State assumptions or ask now |
+| Any questionable decision in the request — technical, product, or UX — flagged, or judged sound? | Raise it as a proposal with a default (B.2), then defer to the user |
 | Every change follows the stack's idioms and this codebase's conventions? | Align to the stack |
 | Core logic I added/changed is testable with no DB/network/framework? | Add a seam or justify |
 | For a bug fix: did the test fail (red) before the fix and pass after? | Run it pre-fix to prove it reproduces |
-| Knowledge single-sourced — no duplicated business rule, no blind copy-paste? | Extract to one home and reuse |
-| Have I named the most probable next change or feature, and would it slot in without a rewrite? | Reshape the design so the likely future fits |
-| To make that probable change, how many places must be touched — is it one? | Consolidate until the knowledge has one home (DRY) |
+| Knowledge single-sourced — no duplicated rule, no blind copy-paste, and the probable next change touches one place? | Extract and consolidate until each piece of knowledge has one home (DRY) |
+| Generalization right-sized — the probable next change I can name slots in without a rewrite, and every abstraction I introduced is defensible from the domain? | Reshape for the futures I can name; drop what I can't defend (Step back) |
+| Did my own or my sub-agents' exploration surface the quality state of the touched area — smells, seams, duplication — not just how to make the feature work? | Re-scout and fold the findings into the plan (B.3) |
 | Do the parts that change together sit close (one module/folder), or scattered across the tree? | Colocate them by feature (Cohesion) |
-| Is this only a fix for the immediate task, or am I confident it's a good move for the bigger picture? | Step back; justify it against the real goal, or redesign |
-| Can I defend every abstraction I introduced from the domain, out loud? | Drop the ones I can't justify |
-| Does the task look like a workaround for an earlier wrong decision (XY problem)? | Surface it; check whether revisiting A is the real fix |
-| Would the next engineer find and safely change this behavior quickly? | Improve naming, placement, and cohesion until yes |
-| Did I inline conceptual steps that a named helper would make readable? | Extract for readability |
+| Is unavoidable complexity contained behind one unit's simple interface, not leaking into its callers? | Pull it down, wrap the hack, or centralize the flow in one coordinator |
+| Is this a good move for the bigger picture, not a patch over an earlier wrong decision (XY problem)? | Step back; surface the suspected real fix and justify against the goal |
+| Would the next engineer find and safely change this quickly — clear names, sensible placement, conceptual steps extracted? | Improve naming, placement, and extraction until yes |
 | Any dead code, commented-out code, or untracked TODO left? | Delete / ticket it |
-| Behavior and structure changed in the same commit? | Split them |
+| Behavior and structure changed in the same commit? | Split them — structural commits first, then behavior (B.4) |
 | Did I touch a high-fan-in (root) unit? | Re-check its name, signature stability, invariants, and all callers |
 | Build and tests pass? | Fix or revert — don't leave it red |
 | Any behavior outside the task's scope changed? | Revert, or justify and ask for approval |
@@ -191,9 +233,9 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 ## Coverage of the recurring failure modes
 
 1. Silent wrong assumptions → **B.1 Clarify before implementing**
-2. Creeping tech debt / broken windows → **B.3 Scout rule**
-3. Overengineering + dead code → **Step back — see the bigger picture** (its over-engineering cautions) and **B.4**
-4. Unintended side effects → **B.2 Don't change what you don't understand**
+2. Creeping tech debt / broken windows → **B.5 Scout rule**
+3. Overengineering + dead code → **Step back — see the bigger picture** (its over-engineering cautions) and **B.6**
+4. Unintended side effects → **B.4 Don't change what you don't understand**
 5. Root vs leaf stability → **Stable dependencies**
 6. Cohesion by feature → **Cohesion by feature**
 7. IoC / god classes → **DIP / IoC**
