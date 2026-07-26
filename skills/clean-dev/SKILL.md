@@ -1,6 +1,6 @@
 ---
 name: clean-dev
-description: Use when planning, writing, editing, or reviewing code in any language or framework. Includes every special rule evaluated and expected from the agent regarding code quality, workflow disciplines to follow, and a self-checking Definition-of-Done table. These should be followed for any kind of development task, including bug fixes, refactors, and new features. Agents' final output is evaluated against this skill, and any violation is a failure. The agent should not output code that violates these rules. Never continue with user's task or planing or ever research/exploration before reading this skill. It contains the very discipline you need to follow to do the planing.
+description: Use when planning, writing, editing, or reviewing code in any language or framework. Includes every special rule evaluated and expected from the agent regarding code quality, workflow disciplines to follow, and a self-checking Definition-of-Done table. These should be followed for any kind of development task, including bug fixes, refactors, and new features. Agents' final output is evaluated against this skill, and any violation is a failure. The agent should not output code that violates these rules. Never continue with user's task or planning or even research/exploration before reading this skill. It contains the very discipline you need to follow to do the planning. This isn't an optional skill; It is mandatory for you to read and follow it, and don't assume any knowledge about it is already known.
 ---
 
 # Clean Dev
