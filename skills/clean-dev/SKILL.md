@@ -24,7 +24,7 @@ These are commands, not concepts. You already know what these principles mean; t
 - When several steps must run in order with branching between them, give one coordinator the flow — it calls each step and decides what comes next — while each step does only its own job and knows nothing of its neighbors; don't chain unit A → B → C so the sequence is smeared across all ten and no single place tells you what runs when.
 - When you must write something ugly — a workaround for a vendor bug, a performance-critical inner loop, a gnarly parsing regex — wrap it behind a named unit with a clear contract and a note on why, so the mess lives in one quarantined place and its callers stay clean.
 - Pull complexity downward: absorb the edge cases and bookkeeping inside the module so callers don't each repeat them, rather than pushing flags and special-case handling outward onto every caller.
-- Handle a special case, null, or ordering quirk once inside the unit that owns it, not in the ten callers that use it.
+- Handle a special case, null, or ordering quirk once inside the unit that owns it, not in the ten callers that use it — after first checking whether a reformulation deletes the case outright (see Step back).
 - A patch of ugly code is not the failure; ugly code with no wall around it is — the defect is complexity leaking into the units around it.
 - Suspect scattered complexity when understanding one behavior means hopping through many files, when the same guard or special case repeats across many callers, or when no single place reveals the order things happen.
 
@@ -55,19 +55,44 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - Don't copy-paste a pattern you found just because it looks close — near-duplication you spread now is duplication you must fix in every copy later.
 - Don't encode the same retry limit or email regex as a literal in several files.
 - Leave apart two blocks that merely look alike but encode different rules that will change independently (a `UserDTO` and an `AccountDTO` with the same fields today) — that is coincidental similarity, not shared knowledge.
-- Suspect a DRY violation when one bug fix requires the identical edit in several files — there, first refactor the copies into one home as a structural change, then fix the bug once in it (see B.4).
+- Suspect a DRY violation when one bug fix requires the identical edit in several files — there, first refactor the copies into one home as a structural change, then fix the bug once in it (see B.5).
 
-### Step back — see the bigger picture, then generalize defensibly
-**Before implementing, step back and understand why this task exists and what larger goal it serves; let that understanding tell you which futures are probable, and design for them. The aim is intelligent generalization you could defend in review from the domain — not a reflexive extra parameter, and not blind minimalism. Under-thinking the whole is the common failure: a wrong design is usually a failure to look up from the immediate line.**
+### No double standards — One way per problem, one shape per concept
+**Solve the same problem the same way everywhere, and represent the same concept in one shape. A second library, pattern, or data layout for a job this project already does is a fork you will pay to keep in sync forever — and a converter between two shapes you own on both sides is the receipt.**
+- Adopt the project's existing answer — its HTTP client, styling system, date library, error type, state store, test idiom — instead of introducing a rival one because you prefer it or reached for a habit.
+- Don't run Tailwind beside SCSS, two state managers, two validation libraries, or two ways to fetch; if the incumbent answer is genuinely wrong, say so (B.2) and replace it everywhere as its own change (B.5) rather than letting both live.
+- Pick one representation for a concept and let it flow end to end — one matrix order, `Money` in minor units, timestamps in UTC, one casing convention — so no code exists whose only job is converting your own data into your own other format.
+- Treat a converter you own on both sides (`toCamel`/`toSnake` between internal layers, row-major↔column-major, `UserDTO`→`UserModel` with identical fields) as a defect in the boundary, not a utility: convert once at the edge where a foreign format actually arrives, and keep one shape inside.
+- Different mechanisms are legitimate only when the problems genuinely differ — the test is whether one case could be expressed in the other's terms without loss or contortion (see DRY on coincidental similarity for the mirror-image mistake).
+- If a second way must exist for a while (a migration in flight, a vendor constraint), bound it: name which side is the target, which code still uses the old one, and what ends it — an unbounded interim is a permanent double standard.
+- Suspect a double standard when the answer to "how do we do X here?" is "depends which part of the app you're in", when a helper of yours is named `convert`, `adapter`, or `legacy` for your own internal data, or when onboarding means learning two answers to one question.
+
+### Single source of truth for data — derive it, don't store and sync it
+**Any value computable from other values is computed, not stored. Two places holding the same fact will disagree, and the code that keeps them equal is pure liability.**
+- Derive on read — a getter, a selector, a computed property, a database view — instead of writing a second copy that every later mutation must remember to update.
+- Treat "when X changes, also update Y" as the smell itself, whether Y is a mirrored column, a duplicated field in two stores, component state shadowing a prop, or a total kept beside the items it sums.
+- Compute a value from its inputs rather than mutating it in place, so the fact has one owner and one path — that is what preferring functional over imperative buys you here, not point-free cleverness over a readable loop.
+- Make derivation cheap enough to keep deriving (memoize on the inputs) before you consider making it stored.
+- **Never hand-manage cache invalidation:** if correctness depends on you remembering to call `invalidate()`, the cache is in the wrong place — key it by everything it derives from so changed inputs produce a different key, or use the platform's reactive/query cache that invalidates itself.
+- When you genuinely must store derived data — a materialized aggregate, a denormalized read model, a search index — give it exactly one writer that recomputes it from the source, name the source of truth, and let no second path write it.
+- Suspect redundancy when two screens show different numbers for one fact, when a bug fix reads "and also update the counter", or when "the cache was stale" is a familiar sentence in this codebase.
+
+### Step back — see the bigger picture, simplify the problem, then generalize defensibly
+**Before implementing, step back and understand why this task exists and what larger goal it serves; let that understanding tell you which futures are probable, and design for them. The aim is intelligent generalization you could defend in review from the domain — not a reflexive extra parameter, and not blind minimalism. Step back the same way when a case fights you: look for the decision that created it, because reformulating the problem deletes an edge case for good while another branch preserves it forever. Under-thinking the whole is the common failure: a wrong design is usually a failure to look up from the immediate line.**
 - Ask what the task is really in service of and design for that goal, not merely for the literal words of the request.
 - Infer the most probable next requirements from the domain and product direction, shape signatures and boundaries so those cases slot in without a rewrite, and be ready to name each future you designed for.
 - When the domain plainly has several "unique by X" needs, write one `uniqueBy(items, keySelector)` rather than letting `uniqueByEmail`, `uniqueById`, and `uniqueByName` accrete over time — do it because you can name those cases, not on a hunch.
 - Model a recurring domain concept as a type, enum, or value object rather than a bare primitive (a `Currency` type, not a magic string), so a new case extends the type instead of copy-pasting checks.
+- Before adding a branch, flag, or guard for an awkward case, ask what would have to be true for that case not to exist — a different data shape, a normalization one step earlier, one representation instead of two, a boundary drawn elsewhere.
+- Normalize at the edge so the core takes one kind of input, instead of teaching thirty functions to accept three kinds.
+- Split entangled concerns before their cases multiply: two problems with 3 cases each cost 3+3 when separated and 3*3 when braided together — put retry and pagination in different layers, not in one loop that must be correct for every combination (see Separation of concerns).
+- Make the illegal state unrepresentable — a type, an enum, an invariant enforced at construction — rather than checked for in every consumer.
 - When a hard task (B) forces an ugly solution, suspect an XY problem — B may be a workaround for a wrong earlier answer (A); surface it and check whether revisiting A is the real fix (see B.1 Clarify before implementing).
 - Justify every abstraction out loud: a `Clock`, a `Repository`, or a `Money` type earns its place by a reason you could state and defend, never "might be handy."
 - Don't generalize on a guess you cannot justify — a plugin system with one plugin, a config flag no caller sets, or indirection added "for flexibility" you cannot name is over-engineering, not foresight.
 - Don't generalize across two things that merely look alike today but encode different rules (see DRY) — coincidental similarity is not a reuse case.
 - Keep heavyweight swap-seams (dependency-inversion interfaces, adapters) for genuine volatility or third-party edges — that is DIP's job.
+- Suspect the wrong formulation when your fix is the third `if` in one function, when a function's cases are the product of two independent conditions, or when every bug fix here adds a case instead of removing one.
 - Suspect over-engineering when an abstraction has exactly one caller with no plausible second you can name, or when the indirection is harder to comprehend than the code it wraps.
 
 ### SRP — one reason to change
@@ -173,27 +198,44 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - Turn what you find into concrete plan decisions up front — "reuse `parseAddress` instead of adding a third copy", "inject the clock so this stays testable", "this touches the widely-imported `Money` type, so update every caller", "extract the duplicated block first as its own structural change, then build the feature on the cleaned base" — instead of discovering them halfway through the edit.
 - When you delegate exploration to a sub-agent, add quality reporting to its brief: e.g. "while you trace how orders are priced, also flag any duplication, god classes, missing seams, or dead code you pass." A sub-agent that returns only the functional answer hides the state of the very code you're about to build on.
 - Keep that a no-extra-work byproduct of the traversal it already does; commission a dedicated quality-scouting sub-agent only when the target area is large or risky enough to earn one.
-- Don't act on a research summary that reports only functional findings from code you know is messy — send it back with the quality question; scouting informs the plan, but the task at hand still decides what you actually change (see B.5 scout rule and B.6).
+- Don't act on a research summary that reports only functional findings from code you know is messy — send it back with the quality question; scouting informs the plan, but the task at hand still decides what you actually change (see B.6 scout rule and B.8).
 
-### 4. Don't change what you don't understand
-- Before editing existing code, be able to say what it does and who depends on it; if you can't, investigate or ask rather than guess.
-- Keep public signatures/contracts stable unless changing them is the task; if you must change one, find and update every caller.
+### 4. Fix the cause, not the symptom — and prefer the correct design over the safe patch
+- Reproduce the failure, then name the mechanism that produces it before you edit; "the error went away" is not a diagnosis.
+- Fix at the level that owns the cause: bad data → the writer or validator that let it in, not the reader that trips over it; a null that should be impossible → remove the possibility rather than add a guard; the same class of bug recurring in new places → the design is the bug.
+- When the cause is the design — a wrong data model, a wrong boundary, a wrong contract — changing the design *is* the fix, not an escalation: surface it (B.1, B.2), then do it properly and update every caller.
+- Choose the clean, robust approach over the timid one even when the timid one is less likely to break something: breakage is empirical — it surfaces, you find it, you fix it — while a wrong design keeps manufacturing bugs for as long as it stands.
+- That buys courage in design, never recklessness in operations: Take the clean path, then state plainly what it breaks and what you updated.
+- If a symptom-level patch is genuinely the right call for now quarantine it behind one named unit with the reason written down (Contain complexity).
+
+### 5. Don't change what you don't understand
+- Before editing existing code, be able to say what it does and who depends on it — the unit itself, its direct callers, and any high-fan-in root in its path; if you can't, investigate or ask rather than guess.
+- Keep public signatures/contracts stable unless changing them is the task — or unless the contract is itself the defect, in which case changing it becomes the task (B.4): surface it, then find and update every caller.
 - Change behavior **or** restructure in a commit, never both — a mixed commit hides which change broke things.
 - When the task needs both, plan the order: structural changes first — the cleanup, the extraction, the refactor the change depends on — then the behavioral change on top of the cleaned base. The split is how you do both, never a reason to do less: if the two disciplines ever collide, the refactoring wins over split hygiene of structural vs behavioral changes.
 - **When fixing a bug with a test, write the test first and run it *before* the fix to confirm it fails for the right reason (red); only then apply the fix and confirm it passes (green).** Never investigate, guess the cause, apply a fix, and *then* write a test that happens to pass — a test that never went red proves nothing, and your guess may have been wrong.
-- Run the build/tests after each change; a green→red means revert and retry smaller, not debug in place.
+- Verify after each batch of changes (B.7); when a run goes red in a way you can't attribute to one specific change, that's the signal to split — revert or bisect into smaller batches and retry, don't debug in place.
 - Never delete or rewrite code you don't understand just to make an error disappear — that is exactly how untouched behavior breaks.
 
-### 5. Leave it cleaner — but don't spread the mess (scout rule)
+### 6. Leave it cleaner — but don't spread the mess (scout rule)
 - Match the **better** existing pattern, not the worst one nearby; copying a local bad pattern "to stay consistent" spreads debt.
 - Make the file you touch slightly cleaner than you found it (a name, a dead line), within the task's scope, without sprawling into unrelated refactors.
 - Never leave an untracked TODO/FIXME: either fix it now, or leave a TODO that references a real ticket (`// TODO(PROJ-123): …`).
 - Delete commented-out code rather than leaving it, where the codebase's review norms agree.
 
-### 6. Don't over-engineer; clean up after yourself
+### 7. Work in focused batches — spend effort where it changes the outcome
+- Research the focused domain of the change — what you are editing, what it does, who calls it — rather than auditing the whole tree for a total safety proof before every edit.
+- Raise that bar exactly where the cost is real: a high-fan-in root, a published contract, a data migration, or a security boundary earns the full sweep of callers (see Stable dependencies).
+- Batch independent edits: when several changes are separable and a failure in any one of them would be attributable.
+- Batch the red run too: write all the failing tests, run once to confirm each fails for the right reason, apply all the fixes, then run once for green (B.5).
+- You are not required to prove the whole blast radius safe; if something distant breaks because it depended on what it shouldn't have, that is another violation surfacing (B.4).
+- Never take this budget from the things that decide the outcome: clarifying an ambiguous requirement (B.1), the quality read of the area (B.3), understanding the unit you are about to edit (B.5), and the Definition-of-Done self-check are not where you save time or tokens.
+
+### 8. Don't over-engineer; clean up after yourself
 - Delete the dead code you create or orphan: unused parameters, unreachable branches, functions no longer called, leftover imports, and scaffolding.
 - Right-size the generalization: design for the futures you can name and defend, but don't build speculative machinery for cases you can't (see Step back — see the bigger picture).
 - When you replace a code path, remove the old one in the same change instead of leaving both.
+- The refactor your change depends on is part of the change, not scope creep (B.5).
 
 ---
 
@@ -203,6 +245,8 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 - Split a behavior-selecting boolean into two named functions, preferring `renderForPrint()` and `renderForScreen()` over `render(isPrint)` when the flag picks a mode.
 - Bundle arguments that always travel together into a parameter object or struct instead of threading five or six positional parameters through many calls.
 - Name a unit for what it means in the domain (`PriceQuote`, `RetryPolicy`), and don't name a core concept `Manager`, `Helper`, `Processor`, `Util`, `Data`, or `Info` — a concept you can't name is a signal the model is wrong; keep framework-required suffixes like `XxxController` where expected.
+- Emit every diagnostic through the project's one structured, leveled logging facility, carrying operation, ids, and a correlation id. If the project has no such facility, that gap is worth raising (B.2) and building once.
+- Log a line only when you can name what later reads it — the alert it feeds, the dashboard it fills, the question it answers at 3am — and log an event once, at the boundary that holds the context, not at all three layers it bubbles through; give a failure what was attempted, with which id, and why it failed, never a bare "error occurred".
 
 ---
 
@@ -215,27 +259,47 @@ Each principle opens with the hard rule (in bold), followed by concrete examples
 | Every change follows the stack's idioms and this codebase's conventions? | Align to the stack |
 | Core logic I added/changed is testable with no DB/network/framework? | Add a seam or justify |
 | For a bug fix: did the test fail (red) before the fix and pass after? | Run it pre-fix to prove it reproduces |
+| Does the fix address the cause, and did I take the correct design over the safer-looking patch — saying plainly what it breaks? | Find the cause; if the design is the cause, change the design (B.4) |
 | Knowledge single-sourced — no duplicated rule, no blind copy-paste, and the probable next change touches one place? | Extract and consolidate until each piece of knowledge has one home (DRY) |
+| Does this add a second way to do something the project already does one way — a rival library, a parallel helper, a second data shape, a converter between two shapes I own? | Converge on the one way, or replace the old one everywhere as its own change |
+| Any value stored that could be derived, any two places I must now keep in sync, any cache I have to invalidate by hand? | Derive it; key the cache by its inputs |
+| Did I add branches, flags, or guards for cases a different formulation would delete? | Reformulate first (Step back); contain only what survives |
 | Generalization right-sized — the probable next change I can name slots in without a rewrite, and every abstraction I introduced is defensible from the domain? | Reshape for the futures I can name; drop what I can't defend (Step back) |
 | Did my own or my sub-agents' exploration surface the quality state of the touched area — smells, seams, duplication — not just how to make the feature work? | Re-scout and fold the findings into the plan (B.3) |
 | Do the parts that change together sit close (one module/folder), or scattered across the tree? | Colocate them by feature (Cohesion) |
 | Is unavoidable complexity contained behind one unit's simple interface, not leaking into its callers? | Pull it down, wrap the hack, or centralize the flow in one coordinator |
 | Is this a good move for the bigger picture, not a patch over an earlier wrong decision (XY problem)? | Step back; surface the suspected real fix and justify against the goal |
 | Would the next engineer find and safely change this quickly — clear names, sensible placement, conceptual steps extracted? | Improve naming, placement, and extraction until yes |
+| For every log line I added: can I name what later reads it, and does it go through the project's one logging seam? | Drop it, or route it properly (C) |
 | Any dead code, commented-out code, or untracked TODO left? | Delete / ticket it |
-| Behavior and structure changed in the same commit? | Split them — structural commits first, then behavior (B.4) |
+| Behavior and structure changed in the same commit? | Split them — structural commits first, then behavior (B.5) |
 | Did I touch a high-fan-in (root) unit? | Re-check its name, signature stability, invariants, and all callers |
 | Build and tests pass? | Fix or revert — don't leave it red |
-| Any behavior outside the task's scope changed? | Revert, or justify and ask for approval |
+| Any behavior outside the task's scope changed? | Revert it — or, if the correct design required it, say explicitly what changed and why (B.4) |
+| Did I name the rules behind the decisions this skill drove? | Cite them inline in the conversation (E) |
+
+---
+
+## E. Name the rules you applied
+
+- In the conversation — never in the code, comments, commit messages, or PR descriptions — name the rule behind each decision this skill drove: a choice you would not have made, or would have made differently, without it.
+- Anchor format is `clean-dev:` plus the rule's short name: `clean-dev:dry`, `clean-dev:srp`, `clean-dev:no-double-standards`, etc.
+- Cite only what you actually used: don't attach an anchor to a decision you would have made anyway.
 
 ---
 
 ## Coverage of the recurring failure modes
 
 1. Silent wrong assumptions → **B.1 Clarify before implementing**
-2. Creeping tech debt / broken windows → **B.5 Scout rule**
-3. Overengineering + dead code → **Step back — see the bigger picture** (its over-engineering cautions) and **B.6**
-4. Unintended side effects → **B.4 Don't change what you don't understand**
+2. Creeping tech debt / broken windows → **B.6 Scout rule**
+3. Overengineering + dead code → **Step back — see the bigger picture** (its over-engineering cautions) and **B.8**
+4. Unintended side effects → **B.5 Don't change what you don't understand**
 5. Root vs leaf stability → **Stable dependencies**
 6. Cohesion by feature → **Cohesion by feature**
 7. IoC / god classes → **DIP / IoC**
+8. Rival solutions and self-inflicted conversion layers → **One way per problem, one shape per concept**
+9. Edge-case accretion and combinatorial branching → **Step back** (its simplification half)
+10. Derived-state drift and hand-invalidated caches → **Single source of truth for data**
+11. Symptom patches and timid design → **B.4 Fix the cause**
+12. Code you can't debug from its logs → **C. Micro-conventions**
+13. Over-cautious, needlessly serialized working → **B.7 Work in focused batches**
