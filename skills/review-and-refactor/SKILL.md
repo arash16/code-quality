@@ -25,7 +25,7 @@ Intelligently pick some partition axis from recon and give each worker the catal
 - **By-feature tree →** one worker per feature/domain folder, each hunting the full catalog in its slice.
 - **By-layer / flat / cross-cutting →** one worker per module cluster, or batch the catalog into **issue families** (below) and give one family per worker. A handful covers everything.
 - **Focus first on the intersection of root × churn × core domain** — don't audit the whole tree when one slice carries the risk.
-- **Cap concurrent workers (≈3–5), and total workers (≈6–10):** The total number of workers fanned out should be strictly sane relative to the LOC and complexity of the target. For example, a 10k LOC target deserves no more than 3-5 workers.
+- **Cap concurrent workers (≈3–5), and total workers (≈6–10):** The total number of workers fanned out should be strictly sane relative to the LOC and complexity of the target. For example, a 10k LOC target deserves no more than 3-5 workers. If the repository is much larger than can be reasonably audited by a handful of workers, then ask the user to narrow the scope to a smaller slice of the codebase.
 
 ### The catalog — `clean-dev` violations, grouped so a worker can take one family
 
