@@ -1,6 +1,6 @@
 ---
 name: architect-new
-description: Use when designing a new system, service, or significant feature before writing much code — choosing module boundaries, a domain model, dependency direction, and data/consistency decisions. Makes only the expensive-to-reverse decisions deliberately and defers the rest, defaults to a modular monolith, forces assumptions into the open, and keeps business rules independent of frameworks.
+description: Use when architecting a new system, service, or significant feature before writing much code — choosing module boundaries, a domain model, dependency direction, and data/consistency decisions. Makes only the expensive-to-reverse decisions deliberately and defers the rest, defaults to a modular monolith, forces assumptions into the open, and keeps business rules independent of frameworks. A counterpart to clean-dev.
 ---
 
 # Architect New

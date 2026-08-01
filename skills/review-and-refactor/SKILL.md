@@ -1,6 +1,6 @@
 ---
 name: review-and-refactor
-description: Use when asked to review, audit, or assess existing code and produce an ordered, safe plan to pay down technical debt or refactor. The counterpart to clean-dev.
+description: Use when asked to review, audit, or assess existing code and produce an ordered, safe plan to pay down technical debt or refactor. A counterpart to clean-dev.
 ---
 
 # Review and Refactor
@@ -39,16 +39,8 @@ Intelligently pick some partition axis from recon and give each worker the catal
 
 ## Prioritize (rank, don't dump)
 
+- **Dead Code, and Big Wins first** — if you can delete it, do it. If you can replace a big chunk with a library, do it. If you can refactor a big chunk to be simpler, do it. These are the first targets, before any further changes that could be simplified by them.
 - **Map dependency structure.** Mark each unit **root** (high fan-in — many dependents) vs **leaf** (fan-out only) by counting inbound imports/usages. Root nodes with issues rank highest — instability there radiates system-wide.
 - **Three-axis targeting** for where to start: (a) code you're about to change anyway, (b) highest git-churn (`git log` hotspots), (c) core domain. A unit scoring on all three is the first target.
 - **Sequence prerequisites leaves→root (Mikado):** attempt the desired change; when it forces a prerequisite, note it, revert, do the prerequisite first. Build the prerequisite graph; solve from the leaves (no-dependency tasks) inward toward the root.
 - **Output:** a prioritized, ordered list — each item with issue type, location, blast radius, effort, and its place in the sequence. **No forced UPPERCASE docs** — present the plan in your response (or the format the user asks for).
-
-## The ordered method (state which step you're in; steps 3+ touch only units the step-2 net covers)
-
-1. **Dead code first.**
-2. **Safety net — GATE.**
-3. **Behavior-preserving refactors**.
-4. **Then, only where you're already touching:** legibility (names, error context); deep-module consolidation (merge shallow classes that share state, delete pass-throughs — bounded by SRP, don't over-merge); dependency seams (stop logic importing the framework/ORM — start with the most-changed module).
-5. **Debt-prevention:** ticket every stray TODO; converge inconsistent patterns onto one.
-6. **Bounded contexts** — carve modules along domain lines via incremental migration (table below).
