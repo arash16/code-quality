@@ -173,29 +173,31 @@ Each principle: hard rule in bold, then concrete examples.
 - On user-facing surface, take user's seat — empty state, error message, hostile input — and flag flow that would frustrate or mislead.
 - Point out simpler, safer, or more standard alternative with your reasoning; don't silently ship worse approach you were handed, and don't swallow concern to avoid friction: concern user overrules costs one sentence; bad decision shipped costs rewrite.
 - Don't turn ownership into obstruction: raise each concern once, concisely, with recommended alternative, then proceed with whatever user decides.
+- Critical thinking exists to understand, question, and communicate better — never to redirect unilaterally. Final decision is user's.
+- Approved plan is contract: no drifting from it, no quietly swapped approach or widened scope mid-impl. New info that invalidates plan → stop, raise it (B.1), get decision; never improvise past it.
 
 ### 3. Explore and plan for quality, not just the feature — and require same of sub-agents
 - Explore area as if quality were part of requirement: pattern to follow, duplication to reuse instead of copy, seam that keeps it testable, high-fan-in file not to casually reshape.
 - Turn findings into concrete plan decisions up front — "reuse `parseAddress` instead of a third copy", "inject the clock so this stays testable", "this touches the widely-imported `Money` type, so update every caller", "extract the duplicated block first, then build the feature on the cleaned base" — not halfway through the edit.
 - Delegating exploration? Put quality in brief: "while you trace how orders are priced, also flag duplication, god classes, missing seams, dead code you pass." Sub-agent returning only functional answer hides state of code you're about to build on.
 - Keep it no-extra-work byproduct of traversal it already does; commission dedicated quality-scout only for large or risky area.
-- Don't act on summary reporting only functional findings from code you know is messy — send it back with quality question. Scouting informs plan; task still decides what you change (B.6, B.8).
+- Don't act on summary reporting only functional findings from code you know is messy — send it back with quality question. Scouting informs plan; task still decides what you change (B.6, B.7).
 
 ### 4. Fix cause, not symptom — and prefer correct design over safe patch
 - Reproduce, then name mechanism producing failure before you edit; "the error went away" is not diagnosis.
 - Fix at level that owns cause: bad data → writer or validator that let it in, not reader that trips over it; impossible null → remove possibility, don't add guard; same bug class recurring in new places → design is the bug.
 - Cause is design (wrong data model, boundary, contract)? Changing it *is* the fix, not escalation: surface it (B.1, B.2), then do it properly and update every caller.
 - Choose clean, robust approach over timid one even when timid one is less likely to break something: breakage is empirical — it surfaces, you find it, you fix it — while wrong design keeps manufacturing bugs as long as it stands.
-- Courage in design, never recklessness in operations: take clean path, then state plainly what it breaks and what you updated.
+- Courage in design, never recklessness in operations, and never courage against user's decision (B.2): take clean path, then state plainly what it breaks and what you updated.
 - Symptom patch genuinely right for now? Quarantine it behind one named unit with reason written down (Contain complexity).
 
 ### 5. Don't change what you don't understand
-- Before editing, be able to say what code does and who depends on it — unit, its direct callers, any high-fan-in root in its path. Can't? Investigate or ask; don't guess.
+- Before editing, be able to say what code does and who depends on it — unit, its direct callers, any high-fan-in root in its path. Can't? Investigate or ask; don't guess. This governs code you change; for code you only call, test at its boundary instead of reading internals (C).
 - Keep public signatures/contracts stable unless changing them is the task — or unless contract is itself the defect, which makes changing it the task (B.4): surface it, then update every caller.
 - Change behavior **or** restructure in commit, never both — mixed commit hides which change broke things.
 - Needing both: structural first — cleanup, extraction, refactor the change depends on — then behavior on cleaned base. Split is how you do both, never reason to do less: if they collide, refactoring wins over split hygiene.
 - **Bug fix with test: write test first and run it *before* fix, confirming it fails for right reason (red); only then fix and confirm green.** Never investigate, guess, fix, and *then* write test that happens to pass — test that never went red proves nothing, and your guess may have been wrong.
-- Verify after each batch (B.7); red you can't attribute to one specific change is signal to split — revert or bisect into smaller batches, don't debug in place.
+- Verify after each batch (C); red you can't attribute to one specific change is signal to split — revert or bisect into smaller batches, don't debug in place.
 - Never delete or rewrite code you don't understand to make error disappear — that's exactly how untouched behavior breaks.
 
 ### 6. Leave it cleaner — but don't spread mess (scout rule)
@@ -203,15 +205,7 @@ Each principle: hard rule in bold, then concrete examples.
 - Leave file you touch slightly cleaner (name, dead line, stale comment), within task's scope, without sprawling into unrelated refactors.
 - Never leave untracked TODO/FIXME: fix it now, or reference real ticket (`// TODO(PROJ-123): …`). Delete commented-out code, where codebase's review norms agree.
 
-### 7. Work in focused batches — spend effort where it changes outcome
-- Research focused domain — what you're editing, what it does, who calls it — not whole-tree safety proof before every edit.
-- Raise that bar where cost is real: high-fan-in root, published contract, data migration, or security boundary earns full sweep of callers (Stable dependencies).
-- Batch independent edits whose failures would be attributable, then verify once.
-- Batch red run too: all failing tests written, one run confirming each fails for right reason, all fixes applied, one run for green (B.5).
-- You aren't required to prove whole blast radius safe; something distant breaking because it depended on what it shouldn't have is another violation surfacing (B.4).
-- Never take this budget from what decides outcome: clarifying ambiguous requirement (B.1), quality read of area (B.3), understanding unit you're editing (B.5), Definition-of-Done check.
-
-### 8. Don't over-engineer; clean up after yourself
+### 7. Don't over-engineer; clean up after yourself
 - Delete dead code you create or orphan: unused params, unreachable branches, uncalled functions, leftover imports, scaffolding.
 - Right-size generalization: futures you can name and defend, not speculative machinery for cases you can't (Step back).
 - Replacing code path removes old one in same change; don't leave both.
@@ -219,7 +213,55 @@ Each principle: hard rule in bold, then concrete examples.
 
 ---
 
-## C. Micro-conventions (yield to stack idiom)
+## C. Agile method — how an AI agent works
+
+**Empirical, not theoretical. Reach working solution fast, then harden where reality pushes back. Full understanding before first attempt is waste, and agents drown in detail and lose sight of goal.**
+
+- 80/20 phase order: do 20% of work yielding 80% of result first, fine-grained details after. End-to-end skeleton that runs beats one perfected part.
+- If you can test it, you don't need to understand it — black-box test beats reading impl. Governs code you call; code you change still needs understanding (B.5).
+- Read project docs before spawning research agents — cheapest source first, freshness-checked (D). Spawn agents only for what docs don't answer or can't be trusted to answer.
+- Research boundary APIs you'll actually call — signature, contract, failure modes, version — not their internals.
+- Fail fast, fail often, fail early: implement, run, let failure point at part that needs depth. Go deep only there.
+- Don't prove whole blast radius safe before first impl. Widen tests and review after working solution exists, not before.
+- Test behavior expected at product/service boundary, not only assumptions inside each unit.
+- Focused research: what you're editing, what it does, who calls it — not whole-tree audit before every change.
+- Raise that bar where cost is real: high-fan-in root, published contract, data migration, or security boundary earns full sweep of callers (Stable dependencies).
+- Something distant breaks because it depended on what it shouldn't have → another violation surfacing; fix that one at its root then (B.4), don't pre-pay for it now.
+- Batch edits whose failures stay attributable, verify once: four failing tests → write all four, one red run, all fixes, one green run (B.5). Changes in different places with easily distinguishable failures → implement together, don't phase them.
+- Never take this budget from what decides outcome: clarifying ambiguous requirement (B.1), quality read of area (B.3), understanding unit you're editing (B.5), Definition-of-Done check.
+
+---
+
+## D. Docs — read cheap, trust nothing stale, leave them true
+
+**Doc is stale until proven fresh. Reading wrong doc costs context and misdirection; leaving wrong doc costs every future session.**
+
+- Outline before reading: `rg '^#+ ' doc.md` for headings, `find` + `yq` over front-matter, or `mq` — then read only sections that matter. Token spent on irrelevant doc is token stolen from task. Be obsessive about this.
+- Check freshness before trusting: `last_verified`/`last_updated` vs commits touching code it describes since that date. Many commits since → treat as suspect and verify against code before acting on it.
+- Code wins when code and doc disagree; then fix doc.
+- Research whose result will likely be needed again → write it up, don't leave it in one session's context: boundary API contract you mapped, subsystem trace, vendor quirk, decision and its why. Research nobody repeats is research you pay for twice.
+- Pitch doc abstract enough to survive routine change, concrete enough to be worth reading: anchor to stable surfaces — public contract, module boundary, invariant, why behind decision — never line numbers, private fn names, or impl detail of high-churn unit (Stable dependencies). Doc needing edit after every refactor rots instead.
+- Every doc you create carries front-matter:
+
+```yaml
+---
+description: how checkout prices orders
+owner: payments-team
+status: active            # active | deprecated | archived
+applies_to: checkout-service
+last_verified: 2026-08-02
+last_updated: 2026-08-02
+tags: [pricing, checkout]
+---
+```
+
+- Doc you came across lacking front-matter → add it. Next session must not re-spend what this one just spent discovering doc is stale.
+- Old and irrelevant → archive or delete. Relevant but outdated → update it (B.6).
+- After changing product or service, final task: find docs that change affects, update them and their `last_updated`.
+
+---
+
+## E. Micro-conventions (yield to stack idiom)
 
 - One verb per action across codebase — pick `fetch` (or `get`, or `retrieve`); don't mix `fetchUser`, `getAccount`, `retrieveOrder` for same kind of read.
 - Split behavior-selecting boolean into two named functions: `renderForPrint()`/`renderForScreen()` over `render(isPrint)`.
@@ -230,7 +272,7 @@ Each principle: hard rule in bold, then concrete examples.
 
 ---
 
-## D. Definition of Done — self-check before declaring task done
+## F. Definition of Done — self-check before declaring task done
 
 Every check must answer yes; any no sends you back to rule named beside it.
 
@@ -238,10 +280,12 @@ Every check must answer yes; any no sends you back to rule named beside it.
 |---|---|
 | Requirement confirmed, no silent assumptions (greenfield vs live users included)? | B.1 |
 | Questionable decision — technical, product, UX — flagged, or judged sound? | B.2 |
+| Approved plan followed — no silent drift, no approach swapped mid-impl? | B.2 |
 | Exploration surfaced area's quality state, not just how to make it work? | B.3 |
 | Fix addresses cause; correct design taken over safer patch, with breakage stated? | B.4 |
 | Bug fix: test went red before fix, green after? | B.5 |
 | Behavior and structure in separate commits, structural first? | B.5 |
+| Behavior verified at product/service boundary, not only unit assumptions? | C |
 | Root (high-fan-in) unit touched → name, signature, invariants, every caller re-checked? | Stable dependencies |
 | Knowledge single-sourced — no duplicated rule, no blind copy-paste? | DRY |
 | No second way to do what project already does one way, and no converter between two shapes I own? | No double standards |
@@ -253,16 +297,18 @@ Every check must answer yes; any no sends you back to rule named beside it.
 | Unavoidable complexity contained, not leaking into callers? | Contain complexity |
 | Next engineer finds and safely changes this fast — names, placement, extraction? | Readability |
 | Comments explain only non-obvious current state, and every comment I touched still matches code? | Readability |
-| Stack idioms and this codebase's conventions followed? | C |
-| Every log line has nameable reader and goes through one logging seam? | C |
-| No dead code, commented-out code, or untracked TODO left? | B.6, B.8 |
-| Rules behind this skill's decisions named in conversation? | E |
+| Stack idioms and this codebase's conventions followed? | E |
+| Every log line has nameable reader and goes through one logging seam? | E |
+| No dead code, commented-out code, or untracked TODO left? | B.6, B.7 |
+| Docs this change affects updated; docs I read left with front-matter and true dates? | D |
+| Research worth reusing written down, at level that won't rot on next refactor? | D |
+| Rules behind this skill's decisions named in conversation? | G |
 | Build and tests pass? | Fix or revert — never leave it red |
 | No behavior changed outside task's scope? | Revert, or say what changed and why (B.4) |
 
 ---
 
-## E. Name rules you applied
+## G. Name rules you applied
 
 - In conversation — never in code, comments, commits, or PR descriptions — name rule behind each decision this skill drove: one you wouldn't have made, or would have made differently, without it.
 - Format: `clean-dev:` plus rule's short name — `clean-dev:dry`, `clean-dev:srp`, `clean-dev:no-double-standards`.
