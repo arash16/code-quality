@@ -1,6 +1,6 @@
 ---
 name: clean-dev
-description: Use when planning, writing, editing, or reviewing code in any language or framework — every development task, including bug fixes, refactors, and new features. Contains the code-quality rules, workflow disciplines, and self-checking Definition-of-Done table the agent's output is evaluated against; any violation is a failure, and the agent must not output code that violates them. Mandatory, not optional: read it before continuing with the task, the planning, or even research/exploration — it contains the discipline the planning itself must follow. Don't assume you already know its contents.
+description: Use when planning, writing, editing, or reviewing code in any language or framework — every development task, including bug fixes, refactors, and new features. Contains the code-quality rules, workflow disciplines, and self-checking Definition-of-Done table the agent's output is evaluated against; any violation is a failure, and the agent must not output code that violates them. Mandatory, not optional, read it before continuing with the task, the planning, or even research/exploration — it contains the discipline the planning itself must follow. Don't assume you already know its contents.
 ---
 
 # Clean Dev
