@@ -219,13 +219,7 @@ Each principle: hard rule in bold, then concrete examples.
 
 - 80/20 phase order: do 20% of work yielding 80% of result first, fine-grained details after. End-to-end skeleton that runs beats one perfected part.
 - If you can test it, you don't need to understand it — black-box test beats reading impl. Governs code you call; code you change still needs understanding (B.5).
-- Read project docs before spawning research agents — cheapest source first, freshness-checked (D). Spawn agents only for what docs don't answer or can't be trusted to answer. Start any research by running following command to get a list of all active docs:
-  ```bash
-  find . \( -name '.?*' -o -name node_modules -o -name archive \) -prune -o -name '*.md' -print0 \
-  | xargs -0 -P 8 -I{} sh -c 'yq --front-matter=extract "filename + \"\t\" + .description" {} 2>/dev/null' \
-  | grep -v $'\tnull$'
-  ```
-  *(Do install `yq` and `rg` globally in your agent's environment if not already present: `brew install yq ripgrep`)*
+- Start any research by indexing project docs (D), then reading relevant ones. Spawn research agents only for what docs don't answer or can't be trusted to answer — cheapest source first.
 - Research boundary APIs you'll actually call — signature, contract, failure modes, version — not their internals.
 - Fail fast, fail often, fail early: implement, run, let failure point at part that needs depth. Go deep only there.
 - Don't prove whole blast radius safe before first impl. Widen tests and review after working solution exists, not before.
@@ -242,12 +236,21 @@ Each principle: hard rule in bold, then concrete examples.
 
 **Doc is stale until proven fresh. Reading wrong doc costs context and misdirection; leaving wrong doc costs every future session.**
 
-- Outline before reading: `rg -n '^#+ ' doc.md` for headings, `find` + `yq` over front-matter, or `mq` — then read only sections that matter. Token spent on irrelevant doc is token stolen from task. Be obsessive about this.
+- Index before reading anything — one line per doc. Needs `yq` + `rg` in agent env (Do install globally: `brew install yq ripgrep`, or platform equivalent):
+
+  ```bash
+  find . \( -name '.?*' -o -name node_modules -o -name archive \) -prune -o -name '*.md' -print0 \
+  | xargs -0 -P 8 -I{} sh -c 'yq --front-matter=extract "filename + \"\t\" + .description" {} 2>/dev/null' \
+  | grep -v $'\tnull$'
+  ```
+
+- Outline before reading candidate: `rg -n '^#+ ' doc.md` for headings, or `mq` — then read only sections that matter. Token spent on irrelevant doc is token stolen from task. Be obsessive about this.
 - Check freshness before trusting: `last_verified`/`last_updated` vs commits touching code it describes since that date. Many commits since → treat as suspect and verify against code before acting on it.
 - Code wins when code and doc disagree; then fix doc.
 - Research whose result will likely be needed again → write it up, don't leave it in one session's context: boundary API contract you mapped, subsystem trace, vendor quirk, decision and its why. Research nobody repeats is research you pay for twice.
-- Pitch doc abstract enough to survive routine change, concrete enough to be worth reading: anchor to stable surfaces — public contract, module boundary, invariant, why behind decision — never line numbers, private fn names, or impl detail of high-churn unit (Stable dependencies).
-- Doc needing edit after every refactor rots instead. Clean documents **answer questions** for next session planning and developments, not just this one. Relevant documents are more likely to be read, rarely needed questions can be answered by on-demand research, and stale docs are worse than none.
+- Reader is expert engineer, not student: doc never teaches general software or programming concepts. Write only repo-specific domain knowledge and workflows that are hard to find or reconstruct without research — business rule and its why, non-obvious integration contract, runbook step, decision and rejected alternatives. What any competent engineer already knows, is noise.
+- Pitch doc abstract enough to survive routine change, concrete enough to be worth reading: anchor to stable surfaces — public contract, module boundary, invariant, why behind decision — never line numbers, private fn names, or impl detail of high-churn unit (Stable dependencies). Doc needing edit after every refactor rots instead.
+- Good documents answer questions next sessions will ask or benefits from knowing it, not just this session's. Rare question is cheaper to re-research than to keep fresh.
 - Every doc you create carries front-matter:
 
   ```yaml
@@ -308,7 +311,8 @@ Every check must answer yes; any no sends you back to rule named beside it.
 | Every log line has nameable reader and goes through one logging seam? | E |
 | No dead code, commented-out code, or untracked TODO left? | B.6, B.7 |
 | Docs this change affects updated; docs I read left with front-matter and true dates? | D |
-| Research worth reusing written down, at level that won't rot on next refactor? | D |
+| Research worth reusing written down, not left in this session only? | D |
+| Any doc I wrote: repo-specific and expert-level, anchored to stable surfaces, front-matter present? | D |
 | Rules behind this skill's decisions named in conversation? | G |
 | Build and tests pass? | Fix or revert — never leave it red |
 | No behavior changed outside task's scope? | Revert, or say what changed and why (B.4) |
