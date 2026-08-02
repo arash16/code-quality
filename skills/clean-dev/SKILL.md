@@ -229,6 +229,12 @@ Each principle: hard rule in bold, then concrete examples.
 - Something distant breaks because it depended on what it shouldn't have → another violation surfacing; fix that one at its root then (B.4), don't pre-pay for it now.
 - Batch edits whose failures stay attributable, verify once: four failing tests → write all four, one red run, all fixes, one green run (B.5). Changes in different places with easily distinguishable failures → implement together, don't phase them.
 - Never take this budget from what decides outcome: clarifying ambiguous requirement (B.1), quality read of area (B.3), understanding unit you're editing (B.5), Definition-of-Done check.
+- Sub-agent tool exposes model or effort per call? Assign one intelligently if your task requires to fan-out:
+  - Cheapest tier that answers, strongest for calls that decide. Search space is unbounded, budget isn't — width comes from cheap tier or not at all, and many cheap scouts beat few dear ones.
+  - Downgrade by difficulty, never by importance: locating, listing, extracting, mechanical transforms go cheap however critical task. Judgment never downgrades — plan, design, diagnosis, verification, Definition of Done. Legwork downgrades; orchestrator doesn't.
+  - Scouts return evidence — paths, signatures, quotes, explicit "not found" — never conclusions; they filter by criteria you state, they don't decide what matters. Vague brief at cheap tier buys confident noise. Choose a medium tier for scout if you cannot make criteria explicit enough to filter noise at cheap tier.
+  - Thin or hedged result → re-run once tier up, same brief. Never retry same tier.
+  - Never select stronger than yourself (You are the cap that user decided).
 
 ---
 
