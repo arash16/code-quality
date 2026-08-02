@@ -219,7 +219,12 @@ Each principle: hard rule in bold, then concrete examples.
 
 - 80/20 phase order: do 20% of work yielding 80% of result first, fine-grained details after. End-to-end skeleton that runs beats one perfected part.
 - If you can test it, you don't need to understand it — black-box test beats reading impl. Governs code you call; code you change still needs understanding (B.5).
-- Read project docs before spawning research agents — cheapest source first, freshness-checked (D). Spawn agents only for what docs don't answer or can't be trusted to answer.
+- Read project docs before spawning research agents — cheapest source first, freshness-checked (D). Spawn agents only for what docs don't answer or can't be trusted to answer. Start any research by running following command to get a list of all active docs:
+  ```bash
+  find . \( -name '.?*' -o -name node_modules -o -name archive \) -prune -o -name '*.md' -print0 \
+  | xargs -0 -P 8 -I{} sh -c 'yq --front-matter=extract "filename + \"\t\" + .description" {} 2>/dev/null' \
+  | grep -v $'\tnull$'
+  ```
 - Research boundary APIs you'll actually call — signature, contract, failure modes, version — not their internals.
 - Fail fast, fail often, fail early: implement, run, let failure point at part that needs depth. Go deep only there.
 - Don't prove whole blast radius safe before first impl. Widen tests and review after working solution exists, not before.
@@ -236,24 +241,25 @@ Each principle: hard rule in bold, then concrete examples.
 
 **Doc is stale until proven fresh. Reading wrong doc costs context and misdirection; leaving wrong doc costs every future session.**
 
-- Outline before reading: `rg '^#+ ' doc.md` for headings, `find` + `yq` over front-matter, or `mq` — then read only sections that matter. Token spent on irrelevant doc is token stolen from task. Be obsessive about this.
+- Outline before reading: `rg -n '^#+ ' doc.md` for headings, `find` + `yq` over front-matter, or `mq` — then read only sections that matter. Token spent on irrelevant doc is token stolen from task. Be obsessive about this.
 - Check freshness before trusting: `last_verified`/`last_updated` vs commits touching code it describes since that date. Many commits since → treat as suspect and verify against code before acting on it.
 - Code wins when code and doc disagree; then fix doc.
 - Research whose result will likely be needed again → write it up, don't leave it in one session's context: boundary API contract you mapped, subsystem trace, vendor quirk, decision and its why. Research nobody repeats is research you pay for twice.
-- Pitch doc abstract enough to survive routine change, concrete enough to be worth reading: anchor to stable surfaces — public contract, module boundary, invariant, why behind decision — never line numbers, private fn names, or impl detail of high-churn unit (Stable dependencies). Doc needing edit after every refactor rots instead.
+- Pitch doc abstract enough to survive routine change, concrete enough to be worth reading: anchor to stable surfaces — public contract, module boundary, invariant, why behind decision — never line numbers, private fn names, or impl detail of high-churn unit (Stable dependencies).
+- Doc needing edit after every refactor rots instead. Clean documents **answer questions** for next session planning and developments, not just this one. Relevant documents are more likely to be read, rarely needed questions can be answered by on-demand research, and stale docs are worse than none.
 - Every doc you create carries front-matter:
 
-```yaml
----
-description: how checkout prices orders
-owner: payments-team
-status: active            # active | deprecated | archived
-applies_to: checkout-service
-last_verified: 2026-08-02
-last_updated: 2026-08-02
-tags: [pricing, checkout]
----
-```
+  ```yaml
+  ---
+  description: how checkout prices orders
+  owner: payments-team
+  status: active            # active | deprecated | archived
+  applies_to: checkout-service
+  last_verified: 2026-08-02
+  last_updated: 2026-08-02
+  tags: [pricing, checkout]
+  ---
+  ```
 
 - Doc you came across lacking front-matter → add it. Next session must not re-spend what this one just spent discovering doc is stale.
 - Old and irrelevant → archive or delete. Relevant but outdated → update it (B.6).
