@@ -225,6 +225,7 @@ Each principle: hard rule in bold, then concrete examples.
   | xargs -0 -P 8 -I{} sh -c 'yq --front-matter=extract "filename + \"\t\" + .description" {} 2>/dev/null' \
   | grep -v $'\tnull$'
   ```
+  *(Do install `yq` and `rg` globally in your agent's environment if not already present: `brew install yq ripgrep`)*
 - Research boundary APIs you'll actually call — signature, contract, failure modes, version — not their internals.
 - Fail fast, fail often, fail early: implement, run, let failure point at part that needs depth. Go deep only there.
 - Don't prove whole blast radius safe before first impl. Widen tests and review after working solution exists, not before.
