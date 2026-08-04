@@ -189,6 +189,7 @@ Each principle: hard rule in bold, then concrete examples.
 - Cause is design (wrong data model, boundary, contract)? Changing it *is* the fix, not escalation: surface it (B.1, B.2), then do it properly and update every caller.
 - Choose clean, robust approach over timid one even when timid one is less likely to break something: breakage is empirical — it surfaces, you find it, you fix it — while wrong design keeps manufacturing bugs as long as it stands.
 - Courage in design, never recklessness in operations, and never courage against user's decision (B.2): take clean path, then state plainly what it breaks and what you updated.
+- Fix like gardener, not surgeon: prune and reshape what grew wrong around bug, don't excise minimum tissue and leave rest. Refactoring is part of fix, sequenced structural-first (B.5) — not deferred to ticket nobody files.
 - Symptom patch genuinely right for now? Quarantine it behind one named unit with reason written down (Contain complexity).
 
 ### 5. Don't change what you don't understand
@@ -204,12 +205,19 @@ Each principle: hard rule in bold, then concrete examples.
 - Match **better** existing pattern, not worst one nearby; copying local bad pattern "for consistency" spreads debt.
 - Leave file you touch slightly cleaner (name, dead line, stale comment), within task's scope, without sprawling into unrelated refactors.
 - Never leave untracked TODO/FIXME: fix it now, or reference real ticket (`// TODO(PROJ-123): …`). Delete commented-out code, where codebase's review norms agree.
+- Tests are code — same DRY, naming, dead-code rules. Delete test no longer describing real behavior, extract repeated setup into named helper instead of copy-paste per case, rename test when what it asserts changes.
 
 ### 7. Don't over-engineer; clean up after yourself
 - Delete dead code you create or orphan: unused params, unreachable branches, uncalled functions, leftover imports, scaffolding.
 - Right-size generalization: futures you can name and defend, not speculative machinery for cases you can't (Step back).
 - Replacing code path removes old one in same change; don't leave both.
 - Refactor your change depends on is part of the change, not scope creep (B.5).
+
+### 8. Commit and hand off
+- Conventional commit format: `type(scope): summary`. Body (line 2 on) states high-level change and carries rule tags for what you applied (G).
+- No attribution to AI agent in commit message, of any kind.
+- Committed, or phase ready for review? List functionality this change affects and what needs testing — you know blast radius, reviewer doesn't.
+- Human commits instead of you? Supply suggested message in same format.
 
 ---
 
@@ -218,6 +226,7 @@ Each principle: hard rule in bold, then concrete examples.
 **Empirical, not theoretical. Reach working solution fast, then harden where reality pushes back. Full understanding before first attempt is waste, and agents drown in detail and lose sight of goal.**
 
 - 80/20 phase order: do 20% of work yielding 80% of result first, fine-grained details after. End-to-end skeleton that runs beats one perfected part.
+- Phase is deliverable product, not system layer: bicycle → motorcycle → car, never wheels → frame → seat. Every phase stands on its own and delivers value.
 - If you can test it, you don't need to understand it — black-box test beats reading impl. Governs code you call; code you change still needs understanding (B.5).
 - Start any research by indexing project docs (D), then reading relevant ones. Spawn research agents only for what docs don't answer or can't be trusted to answer — cheapest source first.
 - Research boundary APIs you'll actually call — signature, contract, failure modes, version — not their internals.
@@ -229,12 +238,13 @@ Each principle: hard rule in bold, then concrete examples.
 - Something distant breaks because it depended on what it shouldn't have → another violation surfacing; fix that one at its root then (B.4), don't pre-pay for it now.
 - Batch edits whose failures stay attributable, verify once: four failing tests → write all four, one red run, all fixes, one green run (B.5). Changes in different places with easily distinguishable failures → implement together, don't phase them.
 - Never take this budget from what decides outcome: clarifying ambiguous requirement (B.1), quality read of area (B.3), understanding unit you're editing (B.5), Definition-of-Done check.
-- Sub-agent tool exposes model or effort per call? Assign one intelligently if your task requires to fan-out:
+- Sub-agent tool exposes model or effort per call? DO ASSIGN one intelligently if your task requires to fan-out (Don't let default without thinking):
   - Cheapest tier that answers, strongest for calls that decide. Search space is unbounded, budget isn't — width comes from cheap tier or not at all, and many cheap scouts beat few dear ones.
   - Downgrade by difficulty, never by importance: locating, listing, extracting, mechanical transforms go cheap however critical task. Judgment never downgrades — plan, design, diagnosis, verification, Definition of Done. Legwork downgrades; orchestrator doesn't.
   - Scouts return evidence — paths, signatures, quotes, explicit "not found" — never conclusions; they filter by criteria you state, they don't decide what matters. Vague brief at cheap tier buys confident noise. Choose a medium tier for scout if you cannot make criteria explicit enough to filter noise at cheap tier.
   - Thin or hedged result → re-run once tier up, same brief. Never retry same tier.
   - Never select stronger than yourself (You are the cap that user decided).
+  - Always use tier's name in description/label of your tool-call (ex: `(haiku) Find all FrameInterceptor implementors`).
 
 ---
 
@@ -261,7 +271,7 @@ Each principle: hard rule in bold, then concrete examples.
 
   ```yaml
   ---
-  description: how checkout prices orders
+  description: how checkout prices orders — read before changing pricing, discount, or tax rules
   owner: payments-team
   status: active            # active | deprecated | archived
   applies_to: checkout-service
@@ -271,6 +281,7 @@ Each principle: hard rule in bold, then concrete examples.
   ---
   ```
 
+- `description` states what doc covers **and** when to read it — index shows that line alone, and next session filters on it. Not "checkout architecture", but "how checkout prices orders — read before changing pricing, discount, or tax rules".
 - Doc you came across lacking front-matter → add it. Next session must not re-spend what this one just spent discovering doc is stale.
 - Old and irrelevant → archive or delete. Relevant but outdated → update it (B.6).
 - After changing product or service, final task: find docs that change affects, update them and their `last_updated`.
@@ -282,7 +293,9 @@ Each principle: hard rule in bold, then concrete examples.
 - One verb per action across codebase — pick `fetch` (or `get`, or `retrieve`); don't mix `fetchUser`, `getAccount`, `retrieveOrder` for same kind of read.
 - Split behavior-selecting boolean into two named functions: `renderForPrint()`/`renderForScreen()` over `render(isPrint)`.
 - Bundle args that always travel together into param object or struct, not five or six positional params threaded through many calls.
-- Name unit for what it means in domain (`PriceQuote`, `RetryPolicy`); never `Manager`, `Helper`, `Processor`, `Util`, `Data`, or `Info` for core concept — concept you can't name means model is wrong. Keep framework-required suffixes like `XxxController`.
+- Name every unit — module, file, class, func — for its own semantics, responsibility, purpose (`PriceQuote`, `RetryPolicy`), never for who calls it or what they'll do with it (`DashboardData`, `AdminHelpers`, `getStuffForCheckoutPage`). Name is doc. Keep framework-required suffixes like `XxxController`.
+- Generic name (`Manager`, `Helper`, `Processor`, `Util`, `Data`, `Info`) → unit does more than one thing (SRP). Same name in several places → cohesion violation or lazy naming. Nothing nameable → wrapper or mediator earning nothing; delete it.
+- Semantics changed by cleanup, refactor, or new feature → rename in same change. That's part of task, not follow-up; stale name misinforms worse than vague one.
 - Emit every diagnostic through project's one structured, leveled logging facility, carrying operation, ids, and correlation id. None exists → raise gap (B.2) and build it once.
 - Log line only when you can name what later reads it — alert it feeds, dashboard it fills, question it answers at 3am. Log event once, at boundary holding context, not at all three layers it bubbles through; give failure what was attempted, with which id, and why — never bare "error occurred".
 
@@ -313,13 +326,16 @@ Every check must answer yes; any no sends you back to rule named beside it.
 | Unavoidable complexity contained, not leaking into callers? | Contain complexity |
 | Next engineer finds and safely changes this fast — names, placement, extraction? | Readability |
 | Comments explain only non-obvious current state, and every comment I touched still matches code? | Readability |
+| Every unit named for own semantics, not its consumer; renamed where semantics changed? | E |
+| Tests maintained as code — stale ones deleted, repeated setup extracted? | B.6 |
 | Stack idioms and this codebase's conventions followed? | E |
 | Every log line has nameable reader and goes through one logging seam? | E |
 | No dead code, commented-out code, or untracked TODO left? | B.6, B.7 |
 | Docs this change affects updated; docs I read left with front-matter and true dates? | D |
 | Research worth reusing written down, not left in this session only? | D |
 | Any doc I wrote: repo-specific and expert-level, anchored to stable surfaces, front-matter present? | D |
-| Rules behind this skill's decisions named in conversation? | G |
+| Affected functionality listed for testing; commit message conventional, tagged, unattributed? | B.8 |
+| Rules behind this skill's decisions named in conversation and commit body? | G |
 | Build and tests pass? | Fix or revert — never leave it red |
 | No behavior changed outside task's scope? | Revert, or say what changed and why (B.4) |
 
@@ -327,6 +343,6 @@ Every check must answer yes; any no sends you back to rule named beside it.
 
 ## G. Name rules you applied
 
-- In conversation — never in code, comments, commits, or PR descriptions — name rule behind each decision this skill drove: one you wouldn't have made, or would have made differently, without it.
+- In conversation and in commit body (B.8) — never in code or comments — name rule behind each decision this skill drove: one you wouldn't have made, or would have made differently, without it.
 - Format: `clean-dev:` plus rule's short name — `clean-dev:dry`, `clean-dev:srp`, `clean-dev:no-double-standards`.
 - Cite only what you used; don't tag decision you'd have made anyway.
